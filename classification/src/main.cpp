@@ -1,6 +1,4 @@
 #include "main.hpp"
-#include "torch/data/dataloader.h"
-
 
 template <typename DataLoader>
 void train(size_t epoch, NetImpl & model, torch::Device device, DataLoader & data_loader, torch::optim::Optimizer & optimizer, size_t dataset_size)
@@ -8,7 +6,7 @@ void train(size_t epoch, NetImpl & model, torch::Device device, DataLoader & dat
 	model.train();
 	size_t batch_index = 0;
 
-	for (auto & batch : *data_loader)
+	for (auto & batch : data_loader)
 	{
 		auto data = batch.data.to(device);
 		auto targets = batch.target.to(device);
@@ -22,7 +20,7 @@ void train(size_t epoch, NetImpl & model, torch::Device device, DataLoader & dat
 		optimizer.step();
 
 		if (batch_index++ % LOG_INTERVAL == 0)
-			printf("\rTrain Epoch: %ld [%5ld/%5ld] Loss: %.4f", epoch, batch_index * batch.data.size(0), dataset_size, loss.template item<float>());
+			printf("\rTrain Epoch: %ld [%5ld/%5ld] Loss: %.4f", epoch, long(batch_index * batch.data.size(0)), dataset_size, loss.template item<float>());
 	}
 }
 
@@ -34,7 +32,7 @@ void test(NetImpl & model, torch::Device device, DataLoader & data_loader, size_
 
 	double test_loss = 0;
 	int32_t correct = 0;
-	for (const auto & batch : *data_loader)
+	for (const auto & batch : data_loader)
 	{
 		auto data = batch.data.to(device);
 		auto targets = batch.target.to(device);
@@ -72,11 +70,11 @@ int main()
 			std::cout << "Training on CPU." << std::endl;
 			device_type = torch::kCPU;
 		}
-		torch::Device device(device_type);
+		torch::Device device(torch::kCPU);
 
 		NetImpl model;
 		cout << model << endl;
-		model.to(torch::kCPU);
+		model.to(device);
 
 		auto train_dataset = torch::data::datasets::MNIST(DATA_ROOT).map(torch::data::transforms::Normalize<>(0.1307, 0.3081))
 																	.map(torch::data::transforms::Stack<>());
@@ -92,8 +90,8 @@ int main()
 
 		for (size_t epoch = 1; epoch <= NUMBER_OF_EPOCHS; ++epoch)
 		{
-			train(epoch, model, device, train_loader, optimizer, train_dataset_size);
-			test(model, device, test_loader, test_dataset_size);
+			train(epoch, model, device, *train_loader, optimizer, train_dataset_size);
+			test(model, device, *test_loader, test_dataset_size);
 		}
 	}
 	catch (const c10::Error &e)

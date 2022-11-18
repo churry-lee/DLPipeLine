@@ -28,7 +28,7 @@ set(SRC_FILES
         )
 
 
-set(EXECUTABLE_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/../bin)
+set(EXECUTABLE_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/../bin/)
 set(OUTPUT_ELF "${CMAKE_PROJECT_NAME}" )
 
 add_executable( ${OUTPUT_ELF} ${SRC_FILES} )
@@ -39,7 +39,7 @@ target_include_directories( ${OUTPUT_ELF} PUBLIC
 target_link_libraries( ${OUTPUT_ELF} "${TORCH_LIBRARIES}")
 
 target_compile_definitions( ${OUTPUT_ELF} PUBLIC
-        PROJECT_SRC_DIR="${CMAKE_SOURCE_DIR}"
+        BINARY_FILE_PATH="${EXECUTABLE_OUTPUT_PATH}"
         )
 
 
@@ -56,7 +56,7 @@ endif (MSVC)
 if (MSVC)
     target_compile_options(${OUTPUT_ELF} PUBLIC /W4)
 else()
-    target_compile_options(${OUTPUT_ELF} PUBLIC -Wall -Wextra -pedantic -Werror)
+    target_compile_options(${OUTPUT_ELF} PUBLIC -Wall -Wextra -pedantic)
 endif(MSVC)
 
 
