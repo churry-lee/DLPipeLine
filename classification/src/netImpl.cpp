@@ -24,7 +24,7 @@ torch::Tensor NetImpl::Forward(torch::Tensor x)
 	x = torch::max_pool2d(conv2_drop->forward(conv2->forward(x)), {2, 2});
 	x = torch::relu(x);
 
-	x = x.view({-1, 320}); // nn.Flatten()
+	x = x.view({-1, 320}); // reshape tensor, -1 means 'total_num / other dimension(320)' => torch.Size(1, 320), == x.view({1, 320})
 
 	x = fc1->forward(x);
 	x = torch::relu(x);

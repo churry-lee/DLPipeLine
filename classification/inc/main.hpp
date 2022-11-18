@@ -11,9 +11,8 @@
 
 using namespace std;
 
-torch::Device device(torch::cuda::is_available() ? torch::kCUDA : torch::hasMPS() ? torch::kMPS : torch::kCPU);
-
-const char * DATA_ROOT = "../data";
+//const string DATA_ROOT = string(PROJECT_SRC_DIR) + string("/data");
+const char * DATA_ROOT = "../../data";
 const int64_t TRAIN_BATCH_SIZE = 64;
 const int64_t TEST_BATCH_SIZE = 1000;
 const int64_t NUMBER_OF_EPOCHS = 10;

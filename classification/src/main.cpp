@@ -1,4 +1,5 @@
 #include "main.hpp"
+#include "torch/data/dataloader.h"
 
 
 template <typename DataLoader>
@@ -7,7 +8,7 @@ void train(size_t epoch, NetImpl & model, torch::Device device, DataLoader & dat
 	model.train();
 	size_t batch_index = 0;
 
-	for (auto & batch : data_loader)
+	for (auto & batch : *data_loader)
 	{
 		auto data = batch.data.to(device);
 		auto targets = batch.target.to(device);
@@ -33,7 +34,7 @@ void test(NetImpl & model, torch::Device device, DataLoader & data_loader, size_
 
 	double test_loss = 0;
 	int32_t correct = 0;
-	for (const auto & batch : data_loader)
+	for (const auto & batch : *data_loader)
 	{
 		auto data = batch.data.to(device);
 		auto targets = batch.target.to(device);
@@ -71,22 +72,19 @@ int main()
 			std::cout << "Training on CPU." << std::endl;
 			device_type = torch::kCPU;
 		}
-//		torch::Device device(device_type);
-		torch::Device device(torch::kCPU);
+		torch::Device device(device_type);
 
 		NetImpl model;
 		cout << model << endl;
-		model.to(device);
+		model.to(torch::kCPU);
 
 		auto train_dataset = torch::data::datasets::MNIST(DATA_ROOT).map(torch::data::transforms::Normalize<>(0.1307, 0.3081))
 																	.map(torch::data::transforms::Stack<>());
 		const size_t train_dataset_size = train_dataset.size().value();
-		auto train_loader = torch::data::make_data_loader<torch::data::samplers::SequentialSampler>(
-			std::move(train_dataset), TRAIN_BATCH_SIZE);
+		auto train_loader = torch::data::make_data_loader<torch::data::samplers::SequentialSampler>( std::move(train_dataset), TRAIN_BATCH_SIZE);
 
-		auto test_dataset = torch::data::datasets::MNIST(DATA_ROOT, torch::data::datasets::MNIST::Mode::kTest)
-							.map(torch::data::transforms::Normalize<>(0.1307, 0.3081))
-							.map(torch::data::transforms::Stack<>());
+		auto test_dataset = torch::data::datasets::MNIST(DATA_ROOT, torch::data::datasets::MNIST::Mode::kTest).map(torch::data::transforms::Normalize<>(0.1307, 0.3081))
+																											  .map(torch::data::transforms::Stack<>());
 		const size_t test_dataset_size = test_dataset.size().value();
 		auto test_loader = torch::data::make_data_loader(std::move(test_dataset), TEST_BATCH_SIZE);
 
@@ -94,8 +92,8 @@ int main()
 
 		for (size_t epoch = 1; epoch <= NUMBER_OF_EPOCHS; ++epoch)
 		{
-			train(epoch, model, device, *train_loader, optimizer, train_dataset_size);
-			test(model, device, *test_loader, test_dataset_size);
+			train(epoch, model, device, train_loader, optimizer, train_dataset_size);
+			test(model, device, test_loader, test_dataset_size);
 		}
 	}
 	catch (const c10::Error &e)
