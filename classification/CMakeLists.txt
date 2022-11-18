@@ -9,7 +9,7 @@ endif()
 
 if(MSVC)
     set(CUDA_TOOLKIT_ROOT_DIR C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v11.6)
-    set(CMAKE_PREFIX_PATH D:/local_lib/libtorch-win)
+    set(CMAKE_PREFIX_PATH D:/local_lib/libtorch-win-debug)
 elseif(${APPLE})
     set(CMAKE_PREFIX_PATH /Users/ichurry/LocalLib/libtorch)
 else()
