@@ -1,4 +1,4 @@
-#include "yolo_training.h"
+#include "yolo_training.hpp"
 
 template<typename T>
 int vec_index(std::vector<T> vec, T value) {

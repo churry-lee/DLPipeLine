@@ -1,4 +1,4 @@
-#include "DetDataset.h"
+#include "DetDataset.hpp"
 #include"utils/tinyxml.h"
 #include "utils/readfile.h"
 
@@ -62,7 +62,7 @@ void load_det_data_from_folder(std::string folder, std::string image_type,
 	std::vector<std::string> &list_images, std::vector<std::string> &list_labels)
 {
 	for_each_file(folder,
-		// filter£¬lambda
+		// filterï¿½ï¿½lambda
 		[&](const char*path, const char* name) {
 		auto full_path = std::string(path).append({ file_sepator() }).append(name);
 		std::string lower_name = tolower1(name);

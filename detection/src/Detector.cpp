@@ -1,52 +1,54 @@
-#include "Detector.h"
-#include"DetDataset.h"
-#include"models/yolo_training.h"
 #include <sys/stat.h>
+
+#include "Detector.hpp"
+#include "DetDataset.hpp"
+#include "models/yolo_training.hpp"
 
 Detector::Detector()
 {
 
 }
 
-void Detector::Initialize(int gpu_id, int width, int height,
-	std::string name_list_path) {
-	if (gpu_id >= 0) {
-		if (gpu_id >= torch::getNumGPUs()) {
-			std::cout << "No GPU id " << gpu_id << " abailable" << std::endl;
-		}
-		device = torch::Device(torch::kCUDA, gpu_id);
+void Detector::Initialize(int gpu_id, int width, int height, std::string name_list_path)
+{
+	torch::DeviceType device_type;
+	if (torch::cuda::is_available())
+	{
+		std::cout << "CUDA available! Training on GPU." << std::endl;
+		device_type = torch::kCUDA;
 	}
-	else {
-		device = torch::Device(torch::kCPU);
+	else if (torch::hasMPS())
+	{
+		std::cout << "MPS available! Training on MPS." << std::endl;
+		device_type = torch::kMPS;
 	}
+	else
+	{
+		std::cout << "Training on CPU." << std::endl;
+		device_type = torch::kCPU;
+	}
+	torch::Device device(torch::kCPU);
+
 	name_list = {};
 	std::ifstream ifs;
 	ifs.open(name_list_path, std::ios::in);
 	if (!ifs.is_open())
-	{
-		std::cout<< "Open "<< name_list_path<<" file failed.";
-		return;
-	}
+		std::cerr << "Open "<< name_list_path<<" file failed.";
+
 	std::string buf = "";
 	while (getline(ifs, buf))
-	{
 		name_list.push_back(buf);
-	}
-
 
 	int num_classes = name_list.size();
 	this->name_list = name_list;
 
 	this->width = width;
 	this->height = height;
-	if (width % 32 || height % 32) {
-		std::cout << "Width or height is not divisible by 32" << std::endl;
-		return ;
-	}
+	if (width % 32 || height % 32)
+		std::cerr << "Width or height is not divisible by 32" << std::endl;
 
 	detector = YoloBody_tiny(3, num_classes);
 	detector->to(device);
-	return;
 }
 
 
@@ -54,19 +56,16 @@ void Detector::loadPretrained(std::string pretrained_pth) {
 	auto net_pretrained = YoloBody_tiny(3, 80);
 	torch::load(net_pretrained, pretrained_pth);
 	if (this->name_list.size() == 80)
-	{
 		detector = net_pretrained;
-	}
 
 	torch::OrderedDict<std::string, at::Tensor> pretrained_dict = net_pretrained->named_parameters();
 	torch::OrderedDict<std::string, at::Tensor> model_dict = detector->named_parameters();
 
-
 	for (auto n = pretrained_dict.begin(); n != pretrained_dict.end(); n++)
 	{
-		if (strstr((*n).key().c_str(), "yolo_head")) {
+		if (strstr((*n).key().c_str(), "yolo_head"))
 			continue;
-		}
+
 		model_dict[(*n).key()] = (*n).value();
 	}
 
@@ -74,40 +73,39 @@ void Detector::loadPretrained(std::string pretrained_pth) {
 	auto new_params = model_dict; // implement this
 	auto params = detector->named_parameters(true /*recurse*/);
 	auto buffers = detector->named_buffers(true /*recurse*/);
-	for (auto& val : new_params) {
+	for (auto& val : new_params)
+	{
 		auto name = val.key();
 		auto* t = params.find(name);
-		if (t != nullptr) {
+		if (t != nullptr)
 			t->copy_(val.value());
-		}
-		else {
+		else
+		{
 			t = buffers.find(name);
-			if (t != nullptr) {
+			if (t != nullptr)
 				t->copy_(val.value());
-			}
 		}
 	}
 	torch::autograd::GradMode::set_enabled(true);
 }
 
-inline bool does_exist(const std::string& name) {
+inline bool does_exist(const std::string& name)
+{
 	struct stat buffer;
 	return (stat(name.c_str(), &buffer) == 0);
 }
 
-void Detector::Train(std::string train_val_path, std::string image_type, int num_epochs, int batch_size,
-	float learning_rate, std::string save_path, std::string pretrained_path) {
+void Detector::Train(std::string train_val_path, std::string image_type, int num_epochs, int batch_size, float learning_rate, std::string save_path, std::string pretrained_path)
+{
 	if (!does_exist(pretrained_path))
-	{
 		std::cout << "Pretrained path is invalid: " << pretrained_path <<"\t random initialzed the model"<< std::endl;
-	}
-	else {
+	else
 		loadPretrained(pretrained_path);
-	}
-	std::string train_label_path = train_val_path + "\\train\\images";
-	std::string train_image_path = train_val_path + "\\train\\labels";
-	std::string val_label_path = train_val_path + "\\val\\images";
-	std::string val_image_path = train_val_path + "\\val\\labels";
+
+	std::string train_label_path = train_val_path + "/train/images";
+	std::string train_image_path = train_val_path + "/train/labels";
+	std::string val_label_path   = train_val_path + "/val/images";
+	std::string val_image_path   = train_val_path + "/val/labels";
 
 	std::vector<std::string> list_images_train = {};
 	std::vector<std::string> list_labels_train = {};
@@ -117,14 +115,15 @@ void Detector::Train(std::string train_val_path, std::string image_type, int num
 	load_det_data_from_folder(train_image_path, image_type, list_images_train, list_labels_train);
 	load_det_data_from_folder(val_image_path, image_type, list_images_val, list_labels_val);
 
-	if (list_images_train.size() < batch_size || list_images_val.size() < batch_size) {
-		std::cout << "Image numbers less than batch size or empty image folder" << std::endl;
-		return;
+	if (list_images_train.size() < batch_size || list_images_val.size() < batch_size)
+	{
+		std::cerr << "Image numbers less than batch size or empty image folder" << std::endl;
+		throw;
 	}
 	if (!does_exist(list_images_train[0]))
 	{
-		std::cout << "Image path is invalid get first train image " << list_images_train[0] << std::endl;
-		return;
+		std::cerr << "Image path is invalid get first train image " << list_images_train[0] << std::endl;
+		throw;
 	}
 	auto custom_dataset_train = DetDataset(list_images_train, list_labels_train, name_list, true,
 		width, height);
@@ -142,35 +141,33 @@ void Detector::Train(std::string train_val_path, std::string image_type, int num
 	
 	auto pretrained_dict = detector->named_parameters();
 	auto FloatType = torch::ones(1).to(torch::kFloat).to(device).options();
-	for (int epoc_count = 0; epoc_count < num_epochs; epoc_count++) {
+	for (int epoc_count = 0; epoc_count < num_epochs; epoc_count++)
+	{
 		float loss_sum = 0;
 		int batch_count = 0;
 		float loss_train = 0;
 		float loss_val = 0;
 		float best_loss = 1e10;
 
-		if (epoc_count == int(num_epochs / 2)) { learning_rate /= 10; }
+		if (epoc_count == int(num_epochs / 2))
+			learning_rate /= 10;
 		torch::optim::Adam optimizer(detector->parameters(), learning_rate); // Learning Rate
-		if (epoc_count < int(num_epochs / 10)) {
+		if (epoc_count < int(num_epochs / 10))
+		{
 			for (auto mm : pretrained_dict)
 			{
 				if (strstr(mm.key().c_str(), "yolo_head"))
-				{
 					mm.value().set_requires_grad(true);
-				}
 				else
-				{
 					mm.value().set_requires_grad(false);
-				}
 			}
 		}
-		else {
-			for (auto mm : pretrained_dict) {
+		else
+			for (auto mm : pretrained_dict)
 				mm.value().set_requires_grad(true);
-			}
-		}
 		detector->train();
-		for (auto& batch : *data_loader_train) {
+		for (auto& batch : *data_loader_train)
+		{
 			std::vector<torch::Tensor> images_vec = {};
 			std::vector<torch::Tensor> targets_vec = {};
 			if (batch.size() < batch_size) continue;
@@ -225,14 +222,16 @@ void Detector::Train(std::string train_val_path, std::string image_type, int num
 			std::cout << "Epoch: " << epoc_count << "," << " Valid Loss: " << loss_val << "\r";
 		}
 		printf("\n");
-		if (best_loss >= loss_val) {
+		if (best_loss >= loss_val)
+		{
 			best_loss = loss_val;
 			torch::save(detector, save_path);
 		}
 	}
 }
 
-void Detector::LoadWeight(std::string weight_path) {
+void Detector::LoadWeight(std::string weight_path)
+{
 	try
 	{
 		torch::load(detector, weight_path);
@@ -247,7 +246,7 @@ void Detector::LoadWeight(std::string weight_path) {
 }
 
 void show_bbox(cv::Mat image, torch::Tensor bboxes, std::vector<std::string> name_list) {
-	//ÉèÖÃ»æÖÆÎÄ±¾µÄÏà¹Ø²ÎÊý
+	//ï¿½ï¿½ï¿½Ã»ï¿½ï¿½ï¿½ï¿½Ä±ï¿½ï¿½ï¿½ï¿½ï¿½Ø²ï¿½ï¿½ï¿½
 	int font_face = cv::FONT_HERSHEY_COMPLEX;
 	double font_scale = 0.4;
 	int thickness = 1;
@@ -258,7 +257,7 @@ void show_bbox(cv::Mat image, torch::Tensor bboxes, std::vector<std::string> nam
 	for (int i = 0; i < bboxes.size(0); i = i + 7)
 	{
 		cv::rectangle(image, cv::Rect(bbox[i + 0], bbox[i + 1], bbox[i + 2] - bbox[i + 0], bbox[i + 3] - bbox[i + 1]), cv::Scalar(0, 0, 255));
-		//½«ÎÄ±¾¿ò¾ÓÖÐ»æÖÆ
+		//ï¿½ï¿½ï¿½Ä±ï¿½ï¿½ï¿½ï¿½ï¿½Ð»ï¿½ï¿½ï¿½
 		cv::Point origin;
 		origin.x = bbox[i + 0];
 		origin.y = bbox[i + 1] + 8;
